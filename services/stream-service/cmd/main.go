@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"os/signal"
-	"syscall"
 
 	// "github.com/your-org/platform-monorepo/services/pkg/log"
 	"github.com/ae144de/sonarbot-service-infra2/services/stream-service/pkg/kafka"
@@ -27,17 +25,17 @@ func (s *Streamer) Run(ctx context.Context) {
 }
 
 func main() {
-	logger := log.NewLogger()
-	cfg := kafka.LoadConfig()
+	// logger := log.NewLogger()
+	// cfg := kafka.LoadConfig()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	// ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	// defer cancel()
 
-	producer, err := kafka.NewProducer(cfg)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Kafka producer oluşturulamadı")
-	}
+	// producer, err := kafka.NewProducer(cfg)
+	// if err != nil {
+	// 	logger.Fatal().Err(err).Msg("Kafka producer oluşturulamadı")
+	// }
 
-	stream := NewStreamer(producer)
-	stream.Run(ctx)
+	// stream := NewStreamer(producer)
+	// stream.Run(ctx)
 }
