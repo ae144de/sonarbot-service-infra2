@@ -1,0 +1,12 @@
+go 1.24.1
+
+use (
+	./services
+	./services/stream-service
+	./services/calc-service
+	./services/services
+	./services/api-gateway
+	./services/notify-service
+	./services/auth-service
+// ./services/stream-service/pkg/kafka
+)
