@@ -36,17 +36,23 @@ services:
       - "8080:8080"
     environment:
       - API_PORT=8080
-      - KAFKA_ADDR=localhost:9092
+      - KAFKA_ADDR=kafka:9092
       - KAFKA_TOPIC=kline.raw
     depends_on:
       - kafka
-
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    
   stream-service:
     build: ../services/stream-service
     ports:
       - "8090:8080"
     environment:
-      - KAFKA_ADDR=localhost:9092
+      - KAFKA_ADDR=kafka:9092
       - KAFKA_TOPIC=kline.raw
     depends_on:
       - kafka
@@ -56,10 +62,10 @@ services:
     ports:
       - "8091:8080"
     environment:
-      - KAFKA_ADDR=localhost:9092
+      - KAFKA_ADDR=kafka:9092
       - KAFKA_TOPIC=kline.raw
       - KAFKA_GROUP_ID=calc-group
-      - REDIS_ADDR=localhost:6379
+      - REDIS_ADDR=redis:6379
     depends_on:
       - kafka
       - redis
@@ -69,7 +75,7 @@ services:
     ports:
       - "8092:8080"
     environment:
-      - KAFKA_ADDR=localhost:9092
+      - KAFKA_ADDR=kafka:9092
       - KAFKA_GROUP_ID=notify-group
       - KAFKA_ALERT_TOPIC=alert.trigger
       - TELEGRAM_TOKEN=your_token_here

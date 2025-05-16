@@ -11,4 +11,5 @@ FROM alpine:3.17
 WORKDIR /app
 COPY --from=builder /app/api-gateway ./api-gateway
 EXPOSE 8080
-ENTRYPOINT ["./api-gateway"]
+# ENTRYPOINT ["./api-gateway"]
+CMD ["./api-gateway"]  # ENTRYPOINT yerine CMD kullanın
