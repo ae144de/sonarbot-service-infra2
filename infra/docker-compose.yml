@@ -18,7 +18,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-
+      
   redis:
     image: redis:7-alpine
     ports:
@@ -37,15 +37,12 @@ services:
     environment:
       - API_PORT=8080
       - KAFKA_ADDR=kafka:9092
-      - KAFKA_TOPIC=kline.raw
+      - ANALYSIS_REQUEST_TOPIC=analysis.request
+      - TEST_REQUEST_TOPIC=test.request
+      # - KAFKA_TOPIC=kline.raw
     depends_on:
       - kafka
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
+    
     
   stream-service:
     build: ../services/stream-service

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	// "github.com/your-org/platform-monorepo/services/pkg/log"
+	"github.com/ae144de/sonarbot-service-infra2/services/services/pkg/log"
 	"github.com/ae144de/sonarbot-service-infra2/services/stream-service/pkg/kafka"
 )
 
@@ -25,6 +26,8 @@ func (s *Streamer) Run(ctx context.Context) {
 }
 
 func main() {
+	logger := log.NewLogger()
+	logger.Info().Msg("🔥 Stream-Service starting…")
 	// logger := log.NewLogger()
 	// cfg := kafka.LoadConfig()
 
