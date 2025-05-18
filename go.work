@@ -10,5 +10,6 @@ use (
 	./services/auth-service
 	./services/news-service
 	./services/trade-service
+	./services/kline-fetcher
 // ./services/stream-service/pkg/kafka
 )

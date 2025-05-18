@@ -60,10 +60,16 @@ services:
     depends_on:
       - kafka
 
-  binance_ws_kline_1m_group_1:
+  x-kline-fetcher-template: &kline_fetcher_template
     build:
-      context: ./services/kline-fetcher
+      context: ../services/kline-fetcher   # infra/docker-compose.yml'e göre bir üst dizin
       dockerfile: Dockerfile
+    depends_on:
+      - kafka
+    restart: on-failure
+
+  binance_ws_kline_1m_group_1:
+    <<: *kline_fetcher_template
     container_name: binance_ws_kline_1m_group_1
     environment:
       - INTERVAL=1m
@@ -71,41 +77,56 @@ services:
       - TOTAL_GROUPS=3
       - KAFKA_ADDR=kafka:9092
       - KAFKA_TOPIC=kline.raw
-    depends_on: [kafka]
-    restart: on-failure
 
   binance_ws_kline_1m_group_2:
-    <<: *binance_ws_kline_1m_group_1
+    <<: *kline_fetcher_template
     container_name: binance_ws_kline_1m_group_2
     environment:
+      - INTERVAL=1m
       - SYMBOL_GROUP=2
-      
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
+
   binance_ws_kline_1m_group_3:
-    <<: *binance_ws_kline_1m_group_1
-    container_name: binance_ws_kline_1m_group_2
+    <<: *kline_fetcher_template
+    container_name: binance_ws_kline_1m_group_3
     environment:
+      - INTERVAL=1m
       - SYMBOL_GROUP=3
-      
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
+
   binance_ws_kline_5m_group_1:
-    <<: *binance_ws_kline_1m_group_1
+    <<: *kline_fetcher_template
     container_name: binance_ws_kline_5m_group_1
     environment:
       - INTERVAL=5m
       - SYMBOL_GROUP=1
-  
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
+
   binance_ws_kline_5m_group_2:
-    <<: *binance_ws_kline_1m_group_1
+    <<: *kline_fetcher_template
     container_name: binance_ws_kline_5m_group_2
     environment:
       - INTERVAL=5m
       - SYMBOL_GROUP=2
-  
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
+
   binance_ws_kline_5m_group_3:
-    <<: *binance_ws_kline_1m_group_1
+    <<: *kline_fetcher_template
     container_name: binance_ws_kline_5m_group_3
     environment:
       - INTERVAL=5m
       - SYMBOL_GROUP=3
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
 
   calc-service:
     build: ../services/calc-service
