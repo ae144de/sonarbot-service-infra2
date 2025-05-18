@@ -3,11 +3,18 @@ version: '3.8'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - kafka-logs:/var/lib/kafka/logs
+      - ./create-topics.sh:/etc/confluent/docker/create-topics.sh:ro
     depends_on: [zookeeper]
     ports:
       - "9092:9092"
@@ -18,7 +25,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      
+
   redis:
     image: redis:7-alpine
     ports:
@@ -42,8 +49,7 @@ services:
       # - KAFKA_TOPIC=kline.raw
     depends_on:
       - kafka
-    
-    
+      
   stream-service:
     build: ../services/stream-service
     ports:
@@ -53,6 +59,53 @@ services:
       - KAFKA_TOPIC=kline.raw
     depends_on:
       - kafka
+
+  binance_ws_kline_1m_group_1:
+    build:
+      context: ./services/kline-fetcher
+      dockerfile: Dockerfile
+    container_name: binance_ws_kline_1m_group_1
+    environment:
+      - INTERVAL=1m
+      - SYMBOL_GROUP=1
+      - TOTAL_GROUPS=3
+      - KAFKA_ADDR=kafka:9092
+      - KAFKA_TOPIC=kline.raw
+    depends_on: [kafka]
+    restart: on-failure
+
+  binance_ws_kline_1m_group_2:
+    <<: *binance_ws_kline_1m_group_1
+    container_name: binance_ws_kline_1m_group_2
+    environment:
+      - SYMBOL_GROUP=2
+      
+  binance_ws_kline_1m_group_3:
+    <<: *binance_ws_kline_1m_group_1
+    container_name: binance_ws_kline_1m_group_2
+    environment:
+      - SYMBOL_GROUP=3
+      
+  binance_ws_kline_5m_group_1:
+    <<: *binance_ws_kline_1m_group_1
+    container_name: binance_ws_kline_5m_group_1
+    environment:
+      - INTERVAL=5m
+      - SYMBOL_GROUP=1
+  
+  binance_ws_kline_5m_group_2:
+    <<: *binance_ws_kline_1m_group_1
+    container_name: binance_ws_kline_5m_group_2
+    environment:
+      - INTERVAL=5m
+      - SYMBOL_GROUP=2
+  
+  binance_ws_kline_5m_group_3:
+    <<: *binance_ws_kline_1m_group_1
+    container_name: binance_ws_kline_5m_group_3
+    environment:
+      - INTERVAL=5m
+      - SYMBOL_GROUP=3
 
   calc-service:
     build: ../services/calc-service
@@ -134,10 +187,16 @@ services:
     depends_on:
       - mongo
 
+  
 networks:
   default:
     driver: bridge
 
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  kafka-logs:
 # # Kafka container içine girin
 # docker-compose exec kafka bash
 
@@ -147,7 +206,7 @@ networks:
 # kafka-topics --create --topic alert.trigger --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
 # kafka-topics --create --topic news.incoming --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
 # kafka-topics --create --topic trade.exec --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
-# kafka-topics --create --topic test.request --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+# kafka-topics --create --topic test.request --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1# 
 
 # # Çık
 # exit
