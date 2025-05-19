@@ -1,4 +1,3 @@
-// services/calc-service/pkg/processor/processor.go
 package processor
 
 import (
@@ -20,13 +19,13 @@ type RawEvent struct {
 		K      struct {
 			Interval  string      `json:"i"`
 			IsClosed  bool        `json:"x"`
+			OpenTime  int64       `json:"t"`
 			Open      json.Number `json:"o"`
 			High      json.Number `json:"h"`
 			Low       json.Number `json:"l"`
 			Close     json.Number `json:"c"`
 			Volume    json.Number `json:"v"`
 			CloseTime int64       `json:"T"`
-			OpenTime  int64       `json:"t"`
 		} `json:"k"`
 	} `json:"data"`
 }
@@ -46,31 +45,31 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 	interval := evt.Data.K.Interval
 	key := fmt.Sprintf("%s:%s", sym, interval)
 
-	// Lock, get job and window, then unlock
+	// Retrieve job
 	calcSvc.Mutex().Lock()
 	job, ok := calcSvc.Jobs()[key]
+	calcSvc.Mutex().Unlock()
 	if !ok {
-		calcSvc.Mutex().Unlock()
 		return
 	}
+
+	// Current window for this symbol
 	window := job.Windows[sym]
-	// Build new Kline
-	open, _ := evt.Data.K.Open.Float64()
-	high, _ := evt.Data.K.High.Float64()
-	low, _ := evt.Data.K.Low.Float64()
-	closeVal, _ := evt.Data.K.Close.Float64()
-	volume, _ := evt.Data.K.Volume.Float64()
+
+	// Build new Kline using raw timestamps
 	newK := calculator.Kline{
-		OpenTime:  time.UnixMilli(evt.Data.K.CloseTime).Add(-calculator.DurationFromInterval(interval)),
-		Open:      open,
-		High:      high,
-		Low:       low,
-		Close:     closeVal,
-		Volume:    volume,
+		OpenTime:  time.UnixMilli(evt.Data.K.OpenTime),
+		Open:      calculator.ParseFloat(evt.Data.K.Open),
+		High:      calculator.ParseFloat(evt.Data.K.High),
+		Low:       calculator.ParseFloat(evt.Data.K.Low),
+		Close:     calculator.ParseFloat(evt.Data.K.Close),
+		Volume:    calculator.ParseFloat(evt.Data.K.Volume),
 		CloseTime: time.UnixMilli(evt.Data.K.CloseTime),
 		IsClosed:  evt.Data.K.IsClosed,
 	}
+
 	// Update sliding window
+	calcSvc.Mutex().Lock()
 	if newK.IsClosed {
 		window = append(window[1:], newK)
 	} else {
@@ -79,7 +78,7 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 	job.Windows[sym] = window
 	calcSvc.Mutex().Unlock()
 
-	// Asynchronous indicator computation
+	// Asynchronous indicator computations
 	var wg sync.WaitGroup
 	resultsCh := make(chan bool, len(job.Indicators))
 	messagesCh := make(chan string, len(job.Indicators))
@@ -90,7 +89,7 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 			defer wg.Done()
 			// Compute indicator value
 			val := calculator.CalculateIndicator(window, cfg.Name, sym, interval, cfg.Params)
-			// Get previous value
+			// Previous value
 			prev := calcSvc.GetPrevious(sym, cfg.Name)
 			// Evaluate alert condition
 			met, err := calculator.EvaluateAlert(val, cfg.Threshold, cfg.Operator, prev)
@@ -100,11 +99,15 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 				messagesCh <- fmt.Sprintf("%s error: %v", cfg.Name, err)
 				return
 			}
-			// Build message detail
+			// Log if individual indicator condition met
+			if met {
+				log.Printf("processor: Indicator '%s' met condition for %s:%s (value=%.4f, threshold=%.4f, operator=%s)", cfg.Name, sym, interval, val, cfg.Threshold, cfg.Operator)
+			}
+			// Send details
 			messagesCh <- fmt.Sprintf("%s => current: %.4f, prev: %.4f, op: %s, thr: %.4f, met: %v",
 				cfg.Name, val, prev, cfg.Operator, cfg.Threshold, met)
 			resultsCh <- met
-			// Store previous
+			// Store for next iteration
 			calcSvc.SetPrevious(sym, cfg.Name, val)
 		}(cfg)
 	}
@@ -120,13 +123,14 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 			break
 		}
 	}
-	// If any met, publish aggregated alert
 	if allMet {
+		log.Printf("processor: All indicators met for %s:%s, publishing alert", sym, interval)
 		details := ""
 		for msg := range messagesCh {
-			details += msg + "\n"
+			details += msg + ""
 		}
-		alertPayload := map[string]interface{}{
+
+		alertPayload := map[string]interface{}{ // use map[string]interface{} to encode JSON
 			"symbol":     sym,
 			"interval":   interval,
 			"indicators": details,
