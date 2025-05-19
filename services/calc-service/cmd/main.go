@@ -7,41 +7,55 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ae144de/sonarbot-service-infra2/services/calc-service/pkg/redis"
-	"github.com/ae144de/sonarbot-service-infra2/services/calc-service/service"
 	kafka "github.com/segmentio/kafka-go"
+
+	"github.com/ae144de/sonarbot-service-infra2/services/calc-service/pkg/calculator"
+	"github.com/ae144de/sonarbot-service-infra2/services/calc-service/pkg/processor"
+	"github.com/ae144de/sonarbot-service-infra2/services/calc-service/pkg/redis"
 )
 
 func main() {
-	// 1) Redis’i başlat (window state için)
+	// 1) Redis’i başlat (sliding-window için state store)
 	if err := redis.Init(); err != nil {
 		log.Fatalf("Redis init error: %v", err)
 	}
 
-	// 2) Kontrol mesajları için Kafka reader (analysis.request)
+	kafkaAddr := os.Getenv("KAFKA_ADDR")
+	rawTopic := os.Getenv("KAFKA_TOPIC")
+	ctrlTopic := os.Getenv("ANALYSIS_REQUEST_TOPIC")
+	alertTopic := os.Getenv("ALERT_TRIGGER_TOPIC")
+
+	// 2) Control reader (analysis.request)
 	ctrlReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{os.Getenv("KAFKA_ADDR")},
+		Brokers: []string{kafkaAddr},
 		GroupID: "calc-control",
-		Topic:   os.Getenv("ANALYSIS_REQUEST_TOPIC"),
+		Topic:   ctrlTopic,
 	})
 	defer ctrlReader.Close()
 
-	// 3) Veri mesajları için Kafka reader (kline.raw)
+	// 3) Data reader (kline.raw)
 	dataReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{os.Getenv("KAFKA_ADDR")},
+		Brokers: []string{kafkaAddr},
 		GroupID: "calc-data",
-		Topic:   os.Getenv("KAFKA_TOPIC"),
+		Topic:   rawTopic,
 	})
 	defer dataReader.Close()
 
-	// 4) İş mantarı servisini başlat
-	calcSvc := service.NewCalculator()
+	// 4) Kafka writer for alerts
+	alertWriter := kafka.NewWriter(kafka.WriterConfig{
+		Brokers: []string{kafkaAddr},
+		Topic:   alertTopic,
+	})
+	defer alertWriter.Close()
 
-	// 5) Context ve sinyal yakalama
+	// 5) Calculator service
+	calcSvc := calculator.NewCalculator(alertWriter)
+
+	// 6) Context & signal
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// 6) Kontrol döngüsü (arama gelen istekleri alıp job tanımlarını oluşturur)
+	// 7) Control loop: parse incoming analysis.request
 	go func() {
 		for {
 			m, err := ctrlReader.FetchMessage(ctx)
@@ -49,20 +63,20 @@ func main() {
 				log.Printf("Control fetch error: %v", err)
 				continue
 			}
-			calcSvc.HandleControl(m.Value)
+			calcSvc.HandleControl(ctx, m.Value)
 			ctrlReader.CommitMessages(ctx, m)
 		}
 	}()
 
-	// 7) Veri döngüsü (kline.raw’dan gelen her kline’ı işleme alır)
-	log.Println("Calc-service up, waiting for klines…")
+	// 8) Data loop: consume kline.raw and process
+	log.Println("Calc-service up, awaiting kline.raw messages…")
 	for {
 		m, err := dataReader.FetchMessage(ctx)
 		if err != nil {
 			log.Printf("Data fetch error: %v", err)
 			continue
 		}
-		calcSvc.HandleKline(m.Value)
+		processor.HandleKline(calcSvc, ctx, m.Value)
 		dataReader.CommitMessages(ctx, m)
 	}
 }
