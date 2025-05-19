@@ -57,6 +57,8 @@ func main() {
 
 	// 7) Control loop: parse incoming analysis.request
 	go func() {
+		log.Println("▶️ Control loop started, listening for analysis requests…")
+
 		for {
 			m, err := ctrlReader.FetchMessage(ctx)
 			if err != nil {
