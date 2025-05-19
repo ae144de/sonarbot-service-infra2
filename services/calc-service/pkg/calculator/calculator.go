@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -118,7 +119,6 @@ func (c *Calculator) HandleControl(ctx context.Context, raw []byte) {
 				Close:     atof(b.Close),
 				Volume:    atof(b.Volume),
 				CloseTime: time.UnixMilli(b.CloseTime),
-				IsClosed:  b.IsFinal,
 			}
 		}
 		windows[sym] = arr
@@ -145,7 +145,9 @@ func (c *Calculator) HandleControl(ctx context.Context, raw []byte) {
 	c.mu.Unlock()
 }
 
-func atof(n json.Number) float64 {
-	f, _ := n.Float64()
+// ... rest of the code ...
+
+func atof(s string) float64 {
+	f, _ := strconv.ParseFloat(s, 64)
 	return f
 }

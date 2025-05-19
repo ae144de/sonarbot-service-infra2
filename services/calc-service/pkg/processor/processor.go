@@ -26,6 +26,7 @@ type RawEvent struct {
 			Close     json.Number `json:"c"`
 			Volume    json.Number `json:"v"`
 			CloseTime int64       `json:"T"`
+			OpenTime  int64       `json:"t"`
 		} `json:"k"`
 	} `json:"data"`
 }
