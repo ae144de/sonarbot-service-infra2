@@ -190,6 +190,10 @@ func (c *Calculator) HandleControl(ctx context.Context, raw []byte) {
 			log.Printf("Hist fetch error for %s: %v", sym, err)
 			continue
 		}
+
+		// Log historical fetch
+		log.Printf("[HandleControl] fetched %d historical klines for %s:%s", len(ks), sym, req.WebsocketKlineOptions.Interval)
+
 		arr := make([]Kline, len(ks))
 		for i, b := range ks {
 			arr[i] = Kline{
@@ -224,6 +228,7 @@ func (c *Calculator) HandleControl(ctx context.Context, raw []byte) {
 		Windows:    windows,
 	}
 	c.mu.Unlock()
+	log.Printf("[HandleControl] job registered for key %s with %d symbols", key, len(syms))
 }
 
 // ... rest of the code ...

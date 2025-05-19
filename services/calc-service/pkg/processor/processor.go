@@ -35,6 +35,8 @@ type RawEvent struct {
 // - asynchronously computes all indicators
 // - evaluates alerts and publishes if conditions met
 func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte) {
+	// 1) Ham event’i parse et
+	log.Printf("[processor] raw kline event: %s", string(raw))
 	var evt RawEvent
 	if err := json.Unmarshal(raw, &evt); err != nil {
 		log.Printf("processor: invalid raw event: %v", err)
@@ -50,6 +52,7 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 	job, ok := calcSvc.Jobs()[key]
 	calcSvc.Mutex().Unlock()
 	if !ok {
+		log.Printf("[processor] no active job for key %s, skipping", key)
 		return
 	}
 
@@ -72,8 +75,10 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 	calcSvc.Mutex().Lock()
 	if newK.IsClosed {
 		window = append(window[1:], newK)
+		log.Printf("[processor] appended closed kline for %s, window size now %d", sym, len(job.Windows[sym]))
 	} else {
 		window[len(window)-1] = newK
+		log.Printf("[processor] updated open kline for %s", sym)
 	}
 	job.Windows[sym] = window
 	calcSvc.Mutex().Unlock()
@@ -88,7 +93,9 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 		go func(cfg calculator.IndicatorConfig) {
 			defer wg.Done()
 			// Compute indicator value
+			log.Printf("[processor] computing %s for %s:%s", cfg.Name, sym, interval)
 			val := calculator.CalculateIndicator(window, cfg.Name, sym, interval, cfg.Params)
+			log.Printf("[processor] %s result for %s:%s = %.4f", cfg.Name, sym, interval, val)
 			// Previous value
 			prev := calcSvc.GetPrevious(sym, cfg.Name)
 			// Evaluate alert condition
