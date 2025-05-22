@@ -155,6 +155,7 @@ func ParseFloat(n json.Number) float64 {
 
 // HandleControl parses the control message and initializes a Job.
 func (c *Calculator) HandleControl(ctx context.Context, raw []byte) {
+	log.Printf("[HandleControl] HandleControl just STARTED!!!")
 	var req AnalysisRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		log.Printf("Invalid control payload: %v", err)

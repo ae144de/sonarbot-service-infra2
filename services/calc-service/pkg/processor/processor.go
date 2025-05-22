@@ -36,7 +36,7 @@ type RawEvent struct {
 // - evaluates alerts and publishes if conditions met
 func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte) {
 	// 1) Ham event’i parse et
-	log.Printf("[processor] raw kline event: %s", string(raw))
+	// log.Printf("[processor] raw kline event: %s", string(raw))
 	var evt RawEvent
 	if err := json.Unmarshal(raw, &evt); err != nil {
 		log.Printf("processor: invalid raw event: %v", err)
@@ -52,7 +52,7 @@ func HandleKline(calcSvc *calculator.Calculator, ctx context.Context, raw []byte
 	job, ok := calcSvc.Jobs()[key]
 	calcSvc.Mutex().Unlock()
 	if !ok {
-		log.Printf("[processor] no active job for key %s, skipping", key)
+		// log.Printf("[processor] no active job for key %s, skipping", key)
 		return
 	}
 

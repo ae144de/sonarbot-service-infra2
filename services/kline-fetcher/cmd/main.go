@@ -8,11 +8,11 @@ import (
 	"syscall"
 
 	"github.com/ae144de/sonarbot-service-infra2/services/kline-fetcher/pkg/fetcher"
-	"github.com/segmentio/kafka-go"
+	kafka "github.com/segmentio/kafka-go"
 )
 
 func main() {
-	// Load environment
+	// 1) Load config from env
 	interval := os.Getenv("INTERVAL")
 	if interval == "" {
 		interval = "1m"
@@ -20,29 +20,44 @@ func main() {
 	groupIdx := fetcher.EnvAsInt("SYMBOL_GROUP", 1)
 	totalGroups := fetcher.EnvAsInt("TOTAL_GROUPS", 3)
 
-	// Kafka producer setup
 	kafkaAddr := os.Getenv("KAFKA_ADDR")
 	topic := os.Getenv("KAFKA_TOPIC")
+
+	// 2) Kafka writer: async ve ACK beklemeden
 	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers: []string{kafkaAddr},
-		Topic:   topic,
+		Brokers:      []string{kafkaAddr},
+		Topic:        topic,
+		Async:        true,                   // hemen döner
+		RequiredAcks: int(kafka.RequireNone), // ACK beklemez
 	})
 	defer writer.Close()
 
-	// Fetch and group symbols
+	// 3) Buffered channel: WebSocket’ten gelen raw mesajları buraya it
+	msgCh := make(chan kafka.Message, 10_000)
+
+	// 4) Tek goroutine: kanaldan okuyup Kafka’ya yazar
+	go func() {
+		for msg := range msgCh {
+			if err := writer.WriteMessages(context.Background(), msg); err != nil {
+				log.Printf("[kafka-producer] write error: %v", err)
+			}
+		}
+	}()
+
+	// 5) Sembolleri çek ve gruplandır
 	symbols, err := fetcher.GetAllFuturesSymbols()
 	if err != nil {
 		log.Fatalf("Failed to fetch symbols: %v", err)
 	}
 	mySymbols := fetcher.GetSymbolsForGroup(symbols, groupIdx, totalGroups)
-	log.Printf("[%s group %d] Subscribing to %d symbols", interval, groupIdx, len(mySymbols))
+	log.Printf("[%s group %d] subscribing to %d symbols", interval, groupIdx, len(mySymbols))
 
-	// Context and signal handling
+	// 6) Shutdown context
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Start WS subscription loop
-	if err := fetcher.SubscribeAndPublish(ctx, mySymbols, interval, writer); err != nil {
+	// 7) WS subscription & publish loop
+	if err := fetcher.SubscribeAndPublish(ctx, mySymbols, interval, msgCh); err != nil {
 		log.Fatalf("Subscription error: %v", err)
 	}
 }
